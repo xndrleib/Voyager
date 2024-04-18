@@ -100,6 +100,10 @@ class Voyager:
         :param skill_library_dir: skill library dir
         :param resume: whether to resume from checkpoint
         """
+        # https://github.com/MineDojo/Voyager/issues/96
+        # if gpt-3.5-turbo is used, set skill_manager_retrieval_top_k = 2
+        skill_manager_retrieval_top_k = 2 if critic_agent_model_name == 'gpt-3.5-turbo' else 5
+
         # init env
         self.env = VoyagerEnv(
             mc_port=mc_port,
