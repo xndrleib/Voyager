@@ -7,7 +7,7 @@ chardet
 cchardet
 chromadb<=0.3.29
 tiktoken
-requests<=2.28.2
+requests
 gymnasium<=0.28.1
 psutil
 minecraft_launcher_lib<=6.1
