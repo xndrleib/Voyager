@@ -22,15 +22,13 @@ class VoyagerEnv(gym.Env):
         azure_login=None,
         server_host="http://127.0.0.1",
         server_port=3000,
-        request_timeout=600,
+        request_timeout=1,
         log_path="./logs",
     ):
         if not mc_port and not azure_login:
             raise ValueError("Either mc_port or azure_login must be specified")
         if mc_port and azure_login:
-            warnings.warn(
-                "Both mc_port and mc_login are specified, mc_port will be ignored"
-            )
+            warnings.warn("Both mc_port and mc_login are specified, mc_port will be ignored")
         self.mc_port = mc_port
         self.azure_login = azure_login
         self.server = f"{server_host}:{server_port}"
@@ -51,11 +49,7 @@ class VoyagerEnv(gym.Env):
         U.f_mkdir(self.log_path, "mineflayer")
         file_path = os.path.abspath(os.path.dirname(__file__))
         return SubprocessMonitor(
-            commands=[
-                "node",
-                U.f_join(file_path, "mineflayer/index.js"),
-                str(server_port),
-            ],
+            commands=["node", U.f_join(file_path, "mineflayer/index.js"), str(server_port)],
             name="mineflayer",
             ready_match=r"Server started on port (\d+)",
             log_path=U.f_join(self.log_path, "mineflayer"),
@@ -113,34 +107,49 @@ class VoyagerEnv(gym.Env):
 
     def check_process(self):
         if self.mc_instance and not self.mc_instance.is_running:
-            print("Starting Minecraft server")
-            self.mc_instance.run()
-            self.mc_port = self.mc_instance.port
-            self.reset_options["port"] = self.mc_instance.port
-            print(f"Server started on port {self.reset_options['port']}")
-        retry = 0
-        while not self.mineflayer.is_running:
-            print("Mineflayer process has exited, restarting")
-            self.mineflayer.run()
-            if not self.mineflayer.is_running:
-                if retry > 3:
-                    raise RuntimeError("Mineflayer process failed to start")
-                else:
-                    continue
-            print(self.mineflayer.ready_line)
+            self.start_mc_instance()
 
+        self.restart_mineflayer_with_backoff()
+
+        return self.try_server_start_endpoint()
+
+    def start_mc_instance(self):
+        print("Starting Minecraft server")
+        self.mc_instance.run()
+        self.mc_port = self.mc_instance.port
+        self.reset_options["port"] = self.mc_instance.port
+        print(f"Server started on port {self.reset_options['port']}")
+
+    def restart_mineflayer_with_backoff(self):
+        retry, max_retries, backoff_factor = 0, 3, 2
+        while retry <= max_retries:
+            if not self.mineflayer.is_running():
+                print(f"Mineflayer process has exited, restarting (Attempt {retry+1})")
+                self.mineflayer.run()
+            if self.mineflayer.is_ready():
+                print("Mineflayer is ready.")
+                break
+            time.sleep(backoff_factor ** retry)
+            retry += 1
+        else:
+            raise RuntimeError("Failed to restart Mineflayer after several attempts")
+
+    def try_server_start_endpoint(self):
+        try:
             result = self.send_request(f"{self.server}/start", json_data=self.reset_options)
-
-            if result.status_code != 200:
-                self.mineflayer.stop()
-                raise RuntimeError(f"Minecraft server reply with code {result.status_code}")
-            return result.json()
+            if result.status_code == 200:
+                print("Server started successfully")
+                return result.json()
+            else:
+                print(f"Received non-200 status code: {result.status_code}")
+        except RuntimeError as e:
+            print(f"Server start failed. Error: {str(e)}")
+        raise RuntimeError("Failed to start server via /start endpoint")
 
     def step(self, code: str, programs: str = "",) -> Tuple[ObsType, SupportsFloat, bool, bool, Dict[str, Any]]:
         if not self.has_reset:
             raise RuntimeError("Environment has not been reset yet")
         self.check_process()
-        self.unpause()
         data = {
             "code": code,
             "programs": programs,
@@ -150,18 +159,16 @@ class VoyagerEnv(gym.Env):
         if result.status_code != 200:
             raise RuntimeError("Failed to step Minecraft server")
         returned_data = result.json()
-        self.pause()
         return json.loads(returned_data)
 
     def render(self):
         raise NotImplementedError("render is not implemented")
 
-    def reset(self, *, seed=None, options=None,) -> Tuple[ObsType, Dict[str, Any]]:
+    def reset(self, *, seed=None, options=None, ) -> Tuple[ObsType, Dict[str, Any]]:
         if options is None:
             options = {}
-
         if options.get("inventory", {}) and options.get("mode", "hard") != "hard":
-            raise RuntimeError("inventory can only be set when options is hard")
+            raise RuntimeError("Inventory can only be set when mode is 'hard'")
 
         self.reset_options = {
             "port": self.mc_port,
@@ -173,20 +180,20 @@ class VoyagerEnv(gym.Env):
             "position": options.get("position", None),
         }
 
-        self.unpause()
         self.mineflayer.stop()
         time.sleep(1)  # wait for mineflayer to exit
 
         returned_data = self.check_process()
+        if not returned_data:
+            raise RuntimeError("Failed to reset environment due to server issues.")
+
         self.has_reset = True
         self.connected = True
-        # All the reset in step will be soft
         self.reset_options["reset"] = "soft"
-        self.pause()
+
         return json.loads(returned_data)
 
     def close(self):
-        self.unpause()
         if self.connected:
             result = self.send_request(f"{self.server}/stop", json_data=None)
             if result.status_code == 200:
