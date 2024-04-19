@@ -70,11 +70,23 @@ class VoyagerEnv(gym.Env):
             log_path=U.f_join(self.log_path, "minecraft"),
         )
 
+    def send_request(self, url, json_data, timeout=None):
+        try:
+            response = requests.post(url, json=json_data, timeout=timeout or self.request_timeout)
+            response.raise_for_status()  # Raises an HTTPError for bad responses
+            return response
+        except requests.exceptions.HTTPError as errh:
+            print("HTTP Error:", errh)
+        except requests.exceptions.ConnectionError as errc:
+            print("Error Connecting:", errc)
+        except requests.exceptions.Timeout as errt:
+            print("Timeout Error:", errt)
+        except requests.exceptions.RequestException as err:
+            print("Oops: Something Else", err)
+        return None
+
     def check_process(self):
         if self.mc_instance and not self.mc_instance.is_running:
-            # if self.mc_instance:
-            #     self.mc_instance.check_process()
-            #     if not self.mc_instance.is_running:
             print("Starting Minecraft server")
             self.mc_instance.run()
             self.mc_port = self.mc_instance.port
@@ -90,23 +102,15 @@ class VoyagerEnv(gym.Env):
                 else:
                     continue
             print(self.mineflayer.ready_line)
-            res = requests.post(
-                f"{self.server}/start",
-                json=self.reset_options,
-                timeout=self.request_timeout,
-            )
-            if res.status_code != 200:
-                self.mineflayer.stop()
-                raise RuntimeError(
-                    f"Minecraft server reply with code {res.status_code}"
-                )
-            return res.json()
 
-    def step(
-        self,
-        code: str,
-        programs: str = "",
-    ) -> Tuple[ObsType, SupportsFloat, bool, bool, Dict[str, Any]]:
+            result = self.send_request(f"{self.server}/start", json=self.reset_options)
+
+            if result.status_code != 200:
+                self.mineflayer.stop()
+                raise RuntimeError(f"Minecraft server reply with code {result.status_code}")
+            return result.json()
+
+    def step(self, code: str, programs: str = "",) -> Tuple[ObsType, SupportsFloat, bool, bool, Dict[str, Any]]:
         if not self.has_reset:
             raise RuntimeError("Environment has not been reset yet")
         self.check_process()
@@ -115,24 +119,18 @@ class VoyagerEnv(gym.Env):
             "code": code,
             "programs": programs,
         }
-        res = requests.post(
-            f"{self.server}/step", json=data, timeout=self.request_timeout
-        )
-        if res.status_code != 200:
+        result = self.send_request(f"{self.server}/step", json=data)
+
+        if result.status_code != 200:
             raise RuntimeError("Failed to step Minecraft server")
-        returned_data = res.json()
+        returned_data = result.json()
         self.pause()
         return json.loads(returned_data)
 
     def render(self):
         raise NotImplementedError("render is not implemented")
 
-    def reset(
-        self,
-        *,
-        seed=None,
-        options=None,
-    ) -> Tuple[ObsType, Dict[str, Any]]:
+    def reset(self, *, seed=None, options=None,) -> Tuple[ObsType, Dict[str, Any]]:
         if options is None:
             options = {}
 
@@ -164,8 +162,8 @@ class VoyagerEnv(gym.Env):
     def close(self):
         self.unpause()
         if self.connected:
-            res = requests.post(f"{self.server}/stop")
-            if res.status_code == 200:
+            result = self.send_request(f"{self.server}/stop", json=None)
+            if result.status_code == 200:
                 self.connected = False
         if self.mc_instance:
             self.mc_instance.stop()
@@ -174,16 +172,16 @@ class VoyagerEnv(gym.Env):
 
     def pause(self):
         if self.mineflayer.is_running and not self.server_paused:
-            res = requests.post(f"{self.server}/pause")
-            if res.status_code == 200:
+            result = self.send_request(f"{self.server}/pause", json=None)
+            if result.status_code == 200:
                 self.server_paused = True
         return self.server_paused
 
     def unpause(self):
         if self.mineflayer.is_running and self.server_paused:
-            res = requests.post(f"{self.server}/pause")
-            if res.status_code == 200:
+            result = self.send_request(f"{self.server}/pause", json=None)
+            if result.status_code == 200:
                 self.server_paused = False
             else:
-                print(res.json())
+                print(result.json())
         return self.server_paused
