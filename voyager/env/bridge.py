@@ -103,7 +103,7 @@ class VoyagerEnv(gym.Env):
                     continue
             print(self.mineflayer.ready_line)
 
-            result = self.send_request(f"{self.server}/start", json=self.reset_options)
+            result = self.send_request(f"{self.server}/start", json_data=self.reset_options)
 
             if result.status_code != 200:
                 self.mineflayer.stop()
@@ -119,7 +119,7 @@ class VoyagerEnv(gym.Env):
             "code": code,
             "programs": programs,
         }
-        result = self.send_request(f"{self.server}/step", json=data)
+        result = self.send_request(f"{self.server}/step", json_data=data)
 
         if result.status_code != 200:
             raise RuntimeError("Failed to step Minecraft server")
@@ -162,7 +162,7 @@ class VoyagerEnv(gym.Env):
     def close(self):
         self.unpause()
         if self.connected:
-            result = self.send_request(f"{self.server}/stop", json=None)
+            result = self.send_request(f"{self.server}/stop", json_data=None)
             if result.status_code == 200:
                 self.connected = False
         if self.mc_instance:
@@ -172,14 +172,14 @@ class VoyagerEnv(gym.Env):
 
     def pause(self):
         if self.mineflayer.is_running and not self.server_paused:
-            result = self.send_request(f"{self.server}/pause", json=None)
+            result = self.send_request(f"{self.server}/pause", json_data=None)
             if result.status_code == 200:
                 self.server_paused = True
         return self.server_paused
 
     def unpause(self):
         if self.mineflayer.is_running and self.server_paused:
-            result = self.send_request(f"{self.server}/pause", json=None)
+            result = self.send_request(f"{self.server}/pause", json_data=None)
             if result.status_code == 200:
                 self.server_paused = False
             else:
