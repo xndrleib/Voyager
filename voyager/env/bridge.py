@@ -70,19 +70,45 @@ class VoyagerEnv(gym.Env):
             log_path=U.f_join(self.log_path, "minecraft"),
         )
 
-    def send_request(self, url, json_data, timeout=None):
-        try:
-            response = requests.post(url, json=json_data, timeout=timeout or self.request_timeout)
-            response.raise_for_status()  # Raises an HTTPError for bad responses
-            return response
-        except requests.exceptions.HTTPError as errh:
-            print("HTTP Error:", errh)
-        except requests.exceptions.ConnectionError as errc:
-            print("Error Connecting:", errc)
-        except requests.exceptions.Timeout as errt:
-            print("Timeout Error:", errt)
-        except requests.exceptions.RequestException as err:
-            print("Oops: Something Else", err)
+    def send_request(self, url, json_data=None, timeout=None, max_retries=3, backoff_factor=1):
+        """
+        Send a request to the specified URL, retrying up to max_retries times with exponential backoff.
+
+        Args:
+            url (str): The URL to which the request is sent.
+            json_data (dict, optional): The JSON data to send in the request. Defaults to None.
+            timeout (int): Timeout for the request.
+            max_retries (int): Maximum number of retries if the request fails.
+            backoff_factor (int): Factor by which to multiply the wait time for each retry.
+
+        Returns:
+            requests.Response: The response object from the server.
+        """
+        effective_timeout = timeout or self.request_timeout
+        attempts = 0
+
+        while attempts < max_retries:
+            try:
+                print(f"Attempt {attempts + 1}: Sending request to {url}")
+                response = requests.post(url, json=json_data, timeout=effective_timeout)
+                response.raise_for_status()  # Raises an HTTPError for bad responses
+                print("Received response successfully.")
+                return response
+            except requests.exceptions.HTTPError as errh:
+                print("HTTP Error:", errh)
+            except requests.exceptions.ConnectionError as errc:
+                print("Error Connecting:", errc)
+            except requests.exceptions.Timeout as errt:
+                print("Timeout Error:", errt)
+            except requests.exceptions.RequestException as err:
+                print("Request Error:", err)
+
+            attempts += 1
+            sleep_time = backoff_factor * (2 ** attempts)
+            print(f"Retrying in {sleep_time} seconds...")
+            time.sleep(sleep_time)
+
+        print("Failed to receive a valid response after several attempts.")
         return None
 
     def check_process(self):
