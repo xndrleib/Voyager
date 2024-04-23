@@ -1,43 +1,43 @@
 async function craftItem(bot, name, count = 1) {
-    // return if name is not string
+    // Validate inputs
     if (typeof name !== "string") {
         throw new Error("name for craftItem must be a string");
     }
-    // return if count is not number
     if (typeof count !== "number") {
         throw new Error("count for craftItem must be a number");
     }
+
+    // Ensure item exists
     const itemByName = mcData.itemsByName[name];
     if (!itemByName) {
         throw new Error(`No item named ${name}`);
     }
+
+    // Locate crafting table
     const craftingTable = bot.findBlock({
         matching: mcData.blocksByName.crafting_table.id,
-        maxDistance: 32,
+        maxDistance: 32
     });
+
+    // Handling when crafting table is not found
     if (!craftingTable) {
-        bot.chat("Craft without a crafting table");
+        throw new Error("No crafting table found within reach. I need a crafting table to proceed.");
     } else {
-        await bot.pathfinder.goto(
-            new GoalLookAtBlock(craftingTable.position, bot.world)
-        );
+        await bot.pathfinder.goto(new GoalLookAtBlock(craftingTable.position, bot.world));
     }
-    const recipe = bot.recipesFor(itemByName.id, null, 1, craftingTable)[0];
-    if (recipe) {
-        bot.chat(`I can make ${name}`);
-        try {
-            await bot.craft(recipe, count, craftingTable);
-            bot.chat(`I did the recipe for ${name} ${count} times`);
-        } catch (err) {
-            bot.chat(`I cannot do the recipe for ${name} ${count} times`);
-        }
-    } else {
-        failedCraftFeedback(bot, name, itemByName, craftingTable);
-        _craftItemFailCount++;
-        if (_craftItemFailCount > 10) {
-            throw new Error(
-                "craftItem failed too many times, check chat log to see what happened"
-            );
-        }
+
+    // Fetch the recipe
+    const recipes = bot.recipesFor(itemByName.id, null, 1, craftingTable);
+    if (!recipes || recipes.length === 0) {
+        throw new Error("No available recipe for ${name}.");
+    }
+    const recipe = recipes[0];
+
+    // Attempt to craft
+    try {
+        await bot.craft(recipe, count, craftingTable);
+        bot.chat(`Crafted ${name} ${count} times.`);
+    } catch (error) {
+        bot.chat(`Failed to craft ${name} ${count} times. Error: ${error.message}`);
     }
 }
