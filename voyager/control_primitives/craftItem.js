@@ -21,23 +21,34 @@ async function craftItem(bot, name, count = 1) {
 
     // Handling when crafting table is not found
     if (!craftingTable) {
-        throw new Error("No crafting table found within reach. I need a crafting table to proceed.");
+        bot.chat("Craft without a crafting table");
     } else {
-        await bot.pathfinder.goto(new GoalLookAtBlock(craftingTable.position, bot.world));
+        await bot.pathfinder.goto(
+            new GoalLookAtBlock(craftingTable.position, bot.world)
+        );
     }
 
     // Fetch the recipe
     const recipes = bot.recipesFor(itemByName.id, null, 1, craftingTable);
-    if (!recipes || recipes.length === 0) {
-        throw new Error("No available recipe for ${name}.");
-    }
-    const recipe = recipes[0];
 
-    // Attempt to craft
-    try {
-        await bot.craft(recipe, count, craftingTable);
-        bot.chat(`Crafted ${name} ${count} times.`);
-    } catch (error) {
-        bot.chat(`Failed to craft ${name} ${count} times. Error: ${error.message}`);
+    if (recipes && recipes.length > 0) {
+        const recipe = recipes[0];
+        bot.chat(`I can make ${name}`);
+
+        // Attempt to craft
+        try {
+            await bot.craft(recipe, count, craftingTable);
+            bot.chat(`I crafted ${name} ${count} times.`);
+        } catch (error) {
+            bot.chat(`Failed to craft ${name} ${count} times. Error: ${error.message}`);
+        }
+    } else {
+        failedCraftFeedback(bot, name, itemByName, craftingTable);
+        _craftItemFailCount++;
+        if (_craftItemFailCount > 10) {
+            throw new Error(
+                "craftItem failed too many times, check chat log to see what happened"
+            );
+        }
     }
 }
