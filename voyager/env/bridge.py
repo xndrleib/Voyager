@@ -56,7 +56,6 @@ class VoyagerEnv(gym.Env):
         )
 
     def get_mc_instance(self):
-        print("Creating Minecraft server")
         U.f_mkdir(self.log_path, "minecraft")
         return MinecraftInstance(
             **self.azure_login,
@@ -83,10 +82,8 @@ class VoyagerEnv(gym.Env):
 
         while attempts < max_retries:
             try:
-                print(f"Attempt {attempts + 1}: Sending request to {url}")
                 response = requests.post(url, json=json_data, timeout=effective_timeout)
                 response.raise_for_status()  # Raises an HTTPError for bad responses
-                print("Received response successfully.")
                 return response
             except requests.exceptions.HTTPError as errh:
                 print("HTTP Error:", errh)
@@ -99,7 +96,6 @@ class VoyagerEnv(gym.Env):
 
             attempts += 1
             sleep_time = backoff_factor * (2 ** attempts)
-            print(f"Retrying in {sleep_time} seconds...")
             time.sleep(sleep_time)
 
         print("Failed to receive a valid response after several attempts.")
