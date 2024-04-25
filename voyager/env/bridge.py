@@ -56,6 +56,7 @@ class VoyagerEnv(gym.Env):
         )
 
     def get_mc_instance(self):
+        print('Getting Minecraft Instance...')
         U.f_mkdir(self.log_path, "minecraft")
         return MinecraftInstance(
             **self.azure_login,
@@ -102,7 +103,7 @@ class VoyagerEnv(gym.Env):
         return None
 
     def check_process(self):
-        if self.mc_instance and not self.mc_instance.is_running:
+        if self.mc_instance and not self.mc_instance.is_running():
             self.start_mc_instance()
 
         self.restart_mineflayer_with_backoff()
@@ -138,7 +139,7 @@ class VoyagerEnv(gym.Env):
                 return result.json()
             else:
                 print(f"Received non-200 status code: {result.status_code}")
-        except RuntimeError as e:
+        except Exception as e:
             print(f"Server start failed. Error: {str(e)}")
         raise RuntimeError("Failed to start server via /start endpoint")
 
@@ -195,6 +196,7 @@ class VoyagerEnv(gym.Env):
             if result.status_code == 200:
                 self.connected = False
         if self.mc_instance:
+            print('203: self.mc_instance.stop()')
             self.mc_instance.stop()
         self.mineflayer.stop()
         return not self.connected
