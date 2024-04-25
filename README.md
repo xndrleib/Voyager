@@ -38,7 +38,7 @@ solve novel tasks from scratch, while other techniques struggle to generalize.
 In this repo, we provide Voyager code. This codebase is under [MIT License](LICENSE).
 
 # Installation
-Voyager requires Python ≥ 3.9 and Node.js ≥ 16.13.0. We have tested on Ubuntu 20.04, Windows 11, and macOS. You need to follow the instructions below to install Voyager.
+Voyager requires Python ≥ 3.9 and Node.js ≥ 18. We have tested on Ubuntu 20.04, Windows 11, and macOS. You need to follow the instructions below to install Voyager.
 
 ## Python Install
 ```
