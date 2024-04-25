@@ -38,6 +38,7 @@ class SubprocessMonitor:
         self.callback_match = callback_match
         self.callback = callback
         self.finished_callback = finished_callback
+        self.match_info = None
 
     def _start(self):
         self.logger.info(f"Starting subprocess with commands: {self.commands}")
@@ -56,7 +57,9 @@ class SubprocessMonitor:
                 if re.search(self.ready_match, line):
                     self.ready = True  # Set the ready flag when the ready condition is met
                     self.ready_event.set()
-                    self.logger.info("Subprocess is ready.")
+                    self.match_info = re.search(self.ready_match, line).group(1)
+                    self.logger.info(f"Subprocess is ready on {self.match_info}.")
+                    # self.logger.info("Subprocess is ready.")
                 if re.search(self.callback_match, line) and self.callback:
                     self.callback()
             self.process.wait()
@@ -86,3 +89,6 @@ class SubprocessMonitor:
         if self.process is None:
             return False
         return self.process.is_running()
+
+    def get_match_info(self):
+        return self.match_info

@@ -1,5 +1,4 @@
 import os
-import re
 
 import minecraft_launcher_lib
 import sys
@@ -111,17 +110,18 @@ class MinecraftInstance:
 
     def run(self):
         self.mc_process.run()
-        pattern = r"Started serving on (\d+)"
-        match = re.search(pattern, self.mc_process.ready_line)
-        if match:
-            self.port = int(match.group(1))
+        match_info = self.mc_process.get_match_info()
+        if match_info:
+            self.port = int(match_info)
             print("The mc server is listening on port", self.port)
         else:
             raise RuntimeError("Port not found")
 
     def stop(self):
+        print("Stopping minecraft")
         self.mc_process.stop()
 
-    @property
     def is_running(self):
-        return self.mc_process.is_running
+        if self.mc_process.process is None:
+            return False
+        return self.mc_process.process.is_running()
